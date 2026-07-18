@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>样品发样统计看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        /* ========== 全局样式 ========== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+            background: #2b2b2b;
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #3c3c3c; }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+        /* ========== 布局 ========== */
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px; background: #1e1e1e; border-radius: 10px;
+            margin-bottom: 20px; border: 1px solid #444;
+        }
+        .header h1 {
+            font-size: 22px; font-weight: bold; color: #00b4d8;
+        }
+        .header-sub {
+            font-size: 12px; color: #888; margin-top: 2px;
+        }
+        .header-controls { display: flex; align-items: center; gap: 12px; }
+        .header-controls select {
+            padding: 6px 12px; border-radius: 6px; border: 1px solid #555;
+            background: #3c3c3c; color: #e0e0e0; font-size: 14px; cursor: pointer;
+        }
+        .header-controls select:focus { outline: none; border-color: #00b4d8; }
+        .last-update {
+            font-size: 12px; color: #888;
+        }
+
+        /* ========== 概览卡片 ========== */
+        .cards {
+            display: flex; gap: 16px; margin-bottom: 20px;
+        }
+        .card {
+            flex: 1; background: #3c3c3c; border-radius: 10px;
+            padding: 20px; border: 1px solid #555; text-align: center;
+        }
+        .card-icon { font-size: 28px; margin-bottom: 8px; }
+        .card-label { font-size: 13px; color: #aaa; margin-bottom: 4px; }
+        .card-value {
+            font-size: 28px; font-weight: bold; color: #00b4d8;
+        }
+
+        /* ========== 选项卡 ========== */
+        .tabs {
+            background: #3c3c3c; border-radius: 10px; border: 1px solid #555;
+            overflow: hidden; margin-bottom: 20px;
+        }
+        .tab-bar {
+            display: flex; background: #252525; border-bottom: 1px solid #444;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            padding: 10px 18px; cursor: pointer; font-size: 13px;
+            color: #e0e0e0; background: transparent; border: none;
+            border-bottom: 2px solid transparent; transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .tab-btn:hover { background: #3c3c3c; }
+        .tab-btn.active {
+            color: #00b4d8; border-bottom-color: #00b4d8; background: #3c3c3c;
+        }
+        .tab-content { padding: 16px; display: none; }
+        .tab-content.active { display: block; }
+
+        /* ========== 表格 ========== */
+        .table-container {
+            overflow-x: auto; max-height: 460px; overflow-y: auto;
+        }
+        table {
+            width: 100%; border-collapse: collapse; font-size: 13px;
+        }
+        thead { position: sticky; top: 0; z-index: 1; }
+        th {
+            background: #1e1e1e; color: #e0e0e0; padding: 10px 12px;
+            text-align: center; font-weight: bold; cursor: pointer;
+            border-bottom: 2px solid #555; user-select: none;
+        }
+        th:hover { background: #333; }
+        th .sort-arrow { color: #00b4d8; margin-left: 4px; }
+        td {
+            padding: 8px 12px; text-align: center; border-bottom: 1px solid #444;
+        }
+        tr:nth-child(even) { background: #333333; }
+        tr:nth-child(odd) { background: #2b2b2b; }
+        tr:hover { background: #3a3a3a; }
+        .total-row { background: #252525 !important; font-weight: bold; }
+        .total-row td { color: #00b4d8; border-top: 2px solid #00b4d8; }
+
+        /* ========== Chart ========== */
+        .chart-container {
+            margin-top: 12px; max-width: 600px; margin-left: auto; margin-right: auto;
+        }
+
+        /* ========== 空状态 ========== */
+        .empty-state {
+            text-align: center; padding: 40px; color: #888; font-size: 15px;
+        }
+
+        /* ========== 响应式 ========== */
+        @media (max-width: 768px) {
+            .header { flex-direction: column; gap: 12px; align-items: flex-start; }
+            .cards { flex-direction: column; }
+            .tab-btn { padding: 8px 12px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- 顶部 -->
+    <div class="header">
+        <div>
+            <h1>📊 样品发样统计看板</h1>
+            <div class="header-sub">多店铺发样数据实时统计</div>
+        </div>
+        <div class="header-controls">
+            <label style="font-size:13px;color:#aaa;">店铺筛选：</label>
+            <select id="shopFilter" onchange="onShopChange()">
+                <option value="全部">全部</option>
+            </select>
+            <div class="last-update" id="lastUpdate">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 概览卡片 -->
+    <div class="cards">
+        <div class="card">
+            <div class="card-icon">📦</div>
+            <div class="card-label">总样品发出</div>
+            <div class="card-value" id="totalQty">0</div>
+        </div>
+        <div class="card">
+            <div class="card-icon">💰</div>
+            <div class="card-label">总成本</div>
+            <div class="card-value" id="totalCost">¥0.00</div>
+        </div>
+        <div class="card">
+            <div class="card-icon">🏪</div>
+            <div class="card-label">店铺数</div>
+            <div class="card-value" id="shopCount">0</div>
+        </div>
+    </div>
+
+    <!-- 统计选项卡 -->
+    <div class="tabs">
+        <div class="tab-bar">
+            <button class="tab-btn active" data-tab="tab-product" onclick="switchTab('tab-product')">按产品</button>
+            <button class="tab-btn" data-tab="tab-color" onclick="switchTab('tab-color')">按颜色(分产品)</button>
+            <button class="tab-btn" data-tab="tab-size" onclick="switchTab('tab-size')">按尺码(分产品)</button>
+            <button class="tab-btn" data-tab="tab-cross" onclick="switchTab('tab-cross')">交叉明细</button>
+            <button class="tab-btn" data-tab="tab-date" onclick="switchTab('tab-date')">按日期</button>
+        </div>
+
+        <!-- 按产品 -->
+        <div class="tab-content active" id="tab-product">
+            <div class="table-container">
+                <table id="productTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('productTable', 0)">产品名 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('productTable', 1)">总发出 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('productTable', 2)">总成本(¥) <span class="sort-arrow"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="productBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 按颜色(分产品) -->
+        <div class="tab-content" id="tab-color">
+            <div class="table-container">
+                <table id="colorTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('colorTable', 0)">产品名 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('colorTable', 1)">颜色 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('colorTable', 2)">总发出 <span class="sort-arrow"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="colorBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 按尺码(分产品) -->
+        <div class="tab-content" id="tab-size">
+            <div class="table-container">
+                <table id="sizeTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('sizeTable', 0)">产品名 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('sizeTable', 1)">尺码 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('sizeTable', 2)">总发出 <span class="sort-arrow"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="sizeBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 交叉明细 -->
+        <div class="tab-content" id="tab-cross">
+            <div class="table-container">
+                <table id="crossTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('crossTable', 0)">产品名 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('crossTable', 1)">颜色 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('crossTable', 2)">尺码 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('crossTable', 3)">总发出 <span class="sort-arrow"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="crossBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 按日期 -->
+        <div class="tab-content" id="tab-date">
+            <div class="table-container">
+                <table id="dateTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('dateTable', 0)">日期 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('dateTable', 1)">产品名 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('dateTable', 2)">发出数量 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('dateTable', 3)">成本(¥) <span class="sort-arrow"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="dateBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部 -->
+    <div style="text-align:center;padding:12px;color:#666;font-size:12px;">
+        样品管理同步系统 · 数据自动刷新（每30秒）
+    </div>
+</div>
+
+<script>
+// ==================== 全局数据 ====================
+let allRecords = [];
+let allProducts = [];
+let allShops = [];
+let sortState = {};
+
+// ==================== 数据加载 ====================
+async function loadData() {
+    try {
+        const shop = document.getElementById('shopFilter').value;
+        const url = `/api/data?shop=${encodeURIComponent(shop)}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+
+        allShops = data.shops || [];
+        allRecords = data.records || [];
+        allProducts = data.products || [];
+
+        // 更新店铺下拉
+        const sel = document.getElementById('shopFilter');
+        const currentVal = sel.value;
+        sel.innerHTML = '<option value="全部">全部</option>';
+        for (const s of allShops) {
+            sel.innerHTML += `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`;
+        }
+        sel.value = currentVal;
+
+        renderAll();
+        document.getElementById('lastUpdate').textContent = '更新时间: ' + getNowStr();
+    } catch (err) {
+        console.error('数据加载失败:', err);
+        document.getElementById('lastUpdate').textContent = '加载失败，请检查服务器';
+    }
+}
+
+function escapeHtml(str) {
+    if (typeof str !== 'string') return str;
+    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function getNowStr() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// ==================== 渲染 ====================
+function renderAll() {
+    renderSummary();
+    renderProductStats();
+    renderColorStats();
+    renderSizeStats();
+    renderCrossStats();
+    renderDateStats();
+}
+
+function renderSummary() {
+    let totalQty = 0;
+    let totalCost = 0;
+    const shopSet = new Set();
+
+    for (const r of allRecords) {
+        totalQty += r.quantity || 0;
+        totalCost += r.total_cost || 0;
+        if (r.shop_name) shopSet.add(r.shop_name);
+    }
+
+    document.getElementById('totalQty').textContent = totalQty + ' 件';
+    document.getElementById('totalCost').textContent = '¥' + totalCost.toFixed(2);
+    document.getElementById('shopCount').textContent = shopSet.size;
+}
+
+function renderProductStats() {
+    const stats = {};
+    for (const r of allRecords) {
+        const name = r.product_name;
+        if (!stats[name]) stats[name] = { qty: 0, cost: 0 };
+        stats[name].qty += r.quantity;
+        stats[name].cost += r.total_cost;
+    }
+
+    const keys = Object.keys(stats).sort();
+    const tbody = document.getElementById('productBody');
+    tbody.innerHTML = '';
+    let totalQty = 0, totalCost = 0;
+
+    for (const name of keys) {
+        const s = stats[name];
+        totalQty += s.qty;
+        totalCost += s.cost;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(name)}</td><td>${s.qty}</td><td>${s.cost.toFixed(2)}</td>`;
+        tbody.appendChild(tr);
+    }
+    if (keys.length > 0) {
+        const tr = document.createElement('tr');
+        tr.className = 'total-row';
+        tr.innerHTML = `<td>─── 合计 ───</td><td>${totalQty}</td><td>${totalCost.toFixed(2)}</td>`;
+        tbody.appendChild(tr);
+    }
+    if (keys.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state">暂无数据</div></td></tr>';
+    }
+}
+
+function renderColorStats() {
+    const stats = {};
+    for (const r of allRecords) {
+        const key = r.product_name + '|||' + r.color;
+        if (!stats[key]) stats[key] = { product: r.product_name, color: r.color, qty: 0 };
+        stats[key].qty += r.quantity;
+    }
+
+    const tbody = document.getElementById('colorBody');
+    tbody.innerHTML = '';
+    const items = Object.values(stats).sort((a, b) => a.product.localeCompare(b.product) || a.color.localeCompare(b.color));
+    for (const item of items) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(item.product)}</td><td>${escapeHtml(item.color)}</td><td>${item.qty}</td>`;
+        tbody.appendChild(tr);
+    }
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state">暂无数据</div></td></tr>';
+    }
+}
+
+function renderSizeStats() {
+    const stats = {};
+    for (const r of allRecords) {
+        const key = r.product_name + '|||' + r.size;
+        if (!stats[key]) stats[key] = { product: r.product_name, size: r.size, qty: 0 };
+        stats[key].qty += r.quantity;
+    }
+
+    const tbody = document.getElementById('sizeBody');
+    tbody.innerHTML = '';
+    const items = Object.values(stats).sort((a, b) => a.product.localeCompare(b.product) || a.size.localeCompare(b.size));
+    for (const item of items) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(item.product)}</td><td>${escapeHtml(item.size)}</td><td>${item.qty}</td>`;
+        tbody.appendChild(tr);
+    }
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state">暂无数据</div></td></tr>';
+    }
+}
+
+function renderCrossStats() {
+    const stats = {};
+    for (const r of allRecords) {
+        const key = r.product_name + '|||' + r.color + '|||' + r.size;
+        if (!stats[key]) stats[key] = { product: r.product_name, color: r.color, size: r.size, qty: 0 };
+        stats[key].qty += r.quantity;
+    }
+
+    const tbody = document.getElementById('crossBody');
+    tbody.innerHTML = '';
+    const items = Object.values(stats).sort((a, b) => a.product.localeCompare(b.product) || a.color.localeCompare(b.color) || a.size.localeCompare(b.size));
+    for (const item of items) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(item.product)}</td><td>${escapeHtml(item.color)}</td><td>${escapeHtml(item.size)}</td><td>${item.qty}</td>`;
+        tbody.appendChild(tr);
+    }
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state">暂无数据</div></td></tr>';
+    }
+}
+
+function renderDateStats() {
+    const stats = {};
+    for (const r of allRecords) {
+        const key = r.date + '|||' + r.product_name;
+        if (!stats[key]) stats[key] = { date: r.date, product: r.product_name, qty: 0, cost: 0 };
+        stats[key].qty += r.quantity;
+        stats[key].cost += r.total_cost;
+    }
+
+    const tbody = document.getElementById('dateBody');
+    tbody.innerHTML = '';
+    const items = Object.values(stats).sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        return a.product.localeCompare(b.product);
+    });
+    for (const item of items) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.product)}</td><td>${item.qty}</td><td>${item.cost.toFixed(2)}</td>`;
+        tbody.appendChild(tr);
+    }
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state">暂无数据</div></td></tr>';
+    }
+}
+
+// ==================== 表格排序 ====================
+function sortTable(tableId, colIndex) {
+    const table = document.getElementById(tableId);
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    // 排除合计行
+    const dataRows = rows.filter(r => !r.classList.contains('total-row'));
+    const totalRow = rows.find(r => r.classList.contains('total-row'));
+
+    // 获取当前排序状态
+    const key = tableId + '_' + colIndex;
+    const asc = sortState[key] === 'desc' ? true : (sortState[key] === 'asc' ? false : true);
+    sortState[key] = asc ? 'asc' : 'desc';
+
+    // 更新箭头
+    const headers = table.querySelectorAll('th');
+    headers.forEach((h, i) => {
+        const arrow = h.querySelector('.sort-arrow');
+        if (arrow) arrow.textContent = '';
+    });
+    const arrow = headers[colIndex].querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = asc ? ' ▲' : ' ▼';
+
+    dataRows.sort((a, b) => {
+        const va = a.cells[colIndex]?.textContent?.trim() || '';
+        const vb = b.cells[colIndex]?.textContent?.trim() || '';
+        const na = parseFloat(va);
+        const nb = parseFloat(vb);
+        if (!isNaN(na) && !isNaN(nb)) {
+            return asc ? na - nb : nb - na;
+        }
+        return asc ? va.localeCompare(vb, 'zh-CN') : vb.localeCompare(va, 'zh-CN');
+    });
+
+    tbody.innerHTML = '';
+    for (const r of dataRows) tbody.appendChild(r);
+    if (totalRow) tbody.appendChild(totalRow);
+}
+
+// ==================== 选项卡切换 ====================
+function switchTab(tabId) {
+    // 切换按钮状态
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('active');
+    // 切换内容
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+
+    // 重新触发排序（保持箭头显示）
+    if (sortState) {
+        // 什么都不做，保留排序状态
+    }
+}
+
+// ==================== 店铺切换 ====================
+function onShopChange() {
+    loadData();
+}
+
+// ==================== 自动刷新 ====================
+let refreshTimer = null;
+function startAutoRefresh() {
+    loadData();
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(loadData, 30000);
+}
+
+// ==================== 启动 ====================
+document.addEventListener('DOMContentLoaded', startAutoRefresh);
+</script>
+</body>
+</html>
