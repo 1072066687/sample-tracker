@@ -20,6 +20,24 @@ if BASE_DIR not in sys.path:
 
 import server_config
 
+# 管理员配置文件（用于密码管理）
+ADMIN_CONFIG_PATH = os.path.join(BASE_DIR, "server_config.json")
+
+def load_admin_config() -> dict:
+    """加载管理员配置"""
+    if os.path.exists(ADMIN_CONFIG_PATH):
+        try:
+            with open(ADMIN_CONFIG_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"admin_password": "admin123"}
+
+def save_admin_config(config: dict):
+    """保存管理员配置"""
+    with open(ADMIN_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+
 app = Flask(
     __name__,
     template_folder=os.path.join(BASE_DIR, "templates"),
@@ -161,6 +179,136 @@ def api_sync():
         "product_count": len(products),
         "sync_time": sync_time,
     })
+
+
+@app.route("/api/clear-shop", methods=["POST"])
+@app.route("/api/shops", methods=["GET"])
+def api_shops():
+    """返回服务器上所有店铺名称（无密码）"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT shop_name FROM products ORDER BY shop_name")
+    shops = [row["shop_name"] for row in cursor.fetchall()]
+    conn.close()
+    return jsonify({"status": "ok", "shops": shops})
+
+
+@app.route("/api/clear-shop", methods=["POST"])
+def api_clear_shop():
+    """清空指定店铺的全部数据（需密码）"""
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify({"status": "error", "message": "无效的JSON数据"}), 400
+
+    shop_name = data.get("shop_name", "")
+    password = data.get("password", "")
+
+    if not shop_name:
+        return jsonify({"status": "error", "message": "缺少 shop_name"}), 400
+
+    # 验证密码
+    admin_cfg = load_admin_config()
+    if password != admin_cfg.get("admin_password", ""):
+        return jsonify({"status": "error", "message": "密码错误"}), 403
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM records WHERE shop_name = ?", (shop_name,))
+    cursor.execute("DELETE FROM products WHERE shop_name = ?", (shop_name,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok", "message": f"已清空店铺「{shop_name}」的数据"})
+
+
+@app.route("/api/restore-data", methods=["POST"])
+def api_restore_data():
+    """桌面端恢复数据：返回指定店铺的全部数据（需密码）"""
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify({"status": "error", "message": "无效的JSON数据"}), 400
+
+    shop = data.get("shop", "")
+    password = data.get("password", "")
+
+    if not shop:
+        return jsonify({"status": "error", "message": "缺少 shop 参数"}), 400
+
+    # 验证密码
+    admin_cfg = load_admin_config()
+    if password != admin_cfg.get("admin_password", ""):
+        return jsonify({"status": "error", "message": "密码错误"}), 403
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM products WHERE shop_name = ?", (shop,))
+    products = []
+    for row in cursor.fetchall():
+        products.append({
+            "id": row["id"],
+            "name": row["name"],
+            "colors": json.loads(row["colors"]),
+            "sizes": json.loads(row["sizes"]),
+            "cost": row["cost"],
+        })
+
+    cursor.execute("SELECT * FROM records WHERE shop_name = ? ORDER BY date DESC", (shop,))
+    records = []
+    for row in cursor.fetchall():
+        records.append({
+            "id": row["id"],
+            "date": row["date"],
+            "product_name": row["product_name"],
+            "color": row["color"],
+            "size": row["size"],
+            "quantity": row["quantity"],
+            "unit_cost": row["unit_cost"],
+            "total_cost": row["total_cost"],
+            "creator": row["creator"],
+            "note": row["note"],
+        })
+
+    conn.close()
+    return jsonify({
+        "status": "ok",
+        "shop_name": shop,
+        "products": products,
+        "records": records,
+        "product_count": len(products),
+        "record_count": len(records),
+    })
+
+
+@app.route("/api/set-password", methods=["POST"])
+def api_set_password():
+    """设置管理员密码（需旧密码验证）"""
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify({"status": "error", "message": "无效的JSON数据"}), 400
+
+    old_pw = data.get("old_password", "")
+    new_pw = data.get("new_password", "")
+
+    if not new_pw:
+        return jsonify({"status": "error", "message": "新密码不能为空"}), 400
+    if len(new_pw) < 4:
+        return jsonify({"status": "error", "message": "密码至少4位"}), 400
+
+    admin_cfg = load_admin_config()
+    if old_pw != admin_cfg.get("admin_password", ""):
+        return jsonify({"status": "error", "message": "旧密码错误"}), 403
+
+    admin_cfg["admin_password"] = new_pw
+    save_admin_config(admin_cfg)
+
+    return jsonify({"status": "ok", "message": "密码已更新"})
+
+
+@app.route("/api/data", methods=["GET"])
 
 
 @app.route("/api/data", methods=["GET"])
