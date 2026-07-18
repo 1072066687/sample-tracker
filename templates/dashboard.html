@@ -173,9 +173,10 @@
                 <table id="productTable">
                     <thead>
                         <tr>
-                            <th onclick="sortTable('productTable', 0)">产品名 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('productTable', 1)">总发出 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('productTable', 2)">总成本(¥) <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('productTable', 0)">店铺 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('productTable', 1)">产品名 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('productTable', 2)">总发出 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('productTable', 3)">总成本(¥) <span class="sort-arrow"></span></th>
                         </tr>
                     </thead>
                     <tbody id="productBody"></tbody>
@@ -189,9 +190,10 @@
                 <table id="colorTable">
                     <thead>
                         <tr>
-                            <th onclick="sortTable('colorTable', 0)">产品名 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('colorTable', 1)">颜色 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('colorTable', 2)">总发出 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('colorTable', 0)">店铺 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('colorTable', 1)">产品名 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('colorTable', 2)">颜色 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('colorTable', 3)">总发出 <span class="sort-arrow"></span></th>
                         </tr>
                     </thead>
                     <tbody id="colorBody"></tbody>
@@ -205,9 +207,10 @@
                 <table id="sizeTable">
                     <thead>
                         <tr>
-                            <th onclick="sortTable('sizeTable', 0)">产品名 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('sizeTable', 1)">尺码 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('sizeTable', 2)">总发出 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('sizeTable', 0)">店铺 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('sizeTable', 1)">产品名 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('sizeTable', 2)">尺码 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('sizeTable', 3)">总发出 <span class="sort-arrow"></span></th>
                         </tr>
                     </thead>
                     <tbody id="sizeBody"></tbody>
@@ -221,10 +224,11 @@
                 <table id="crossTable">
                     <thead>
                         <tr>
-                            <th onclick="sortTable('crossTable', 0)">产品名 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('crossTable', 1)">颜色 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('crossTable', 2)">尺码 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('crossTable', 3)">总发出 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('crossTable', 0)">店铺 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('crossTable', 1)">产品名 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('crossTable', 2)">颜色 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('crossTable', 3)">尺码 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('crossTable', 4)">总发出 <span class="sort-arrow"></span></th>
                         </tr>
                     </thead>
                     <tbody id="crossBody"></tbody>
@@ -239,9 +243,10 @@
                     <thead>
                         <tr>
                             <th onclick="sortTable('dateTable', 0)">日期 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('dateTable', 1)">产品名 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('dateTable', 2)">发出数量 <span class="sort-arrow"></span></th>
-                            <th onclick="sortTable('dateTable', 3)">成本(¥) <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('dateTable', 1)">店铺 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('dateTable', 2)">产品名 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('dateTable', 3)">发出数量 <span class="sort-arrow"></span></th>
+                            <th onclick="sortTable('dateTable', 4)">成本(¥) <span class="sort-arrow"></span></th>
                         </tr>
                     </thead>
                     <tbody id="dateBody"></tbody>
@@ -332,10 +337,10 @@ function renderSummary() {
 function renderProductStats() {
     const stats = {};
     for (const r of allRecords) {
-        const name = r.product_name;
-        if (!stats[name]) stats[name] = { qty: 0, cost: 0 };
-        stats[name].qty += r.quantity;
-        stats[name].cost += r.total_cost;
+        const key = (r.shop_name || '未知') + '|' + r.product_name;
+        if (!stats[key]) stats[key] = { shop: r.shop_name || '未知', product: r.product_name, qty: 0, cost: 0 };
+        stats[key].qty += r.quantity;
+        stats[key].cost += r.total_cost;
     }
 
     const keys = Object.keys(stats).sort();
@@ -343,81 +348,40 @@ function renderProductStats() {
     tbody.innerHTML = '';
     let totalQty = 0, totalCost = 0;
 
-    for (const name of keys) {
-        const s = stats[name];
+    for (const key of keys) {
+        const s = stats[key];
         totalQty += s.qty;
         totalCost += s.cost;
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escapeHtml(name)}</td><td>${s.qty}</td><td>${s.cost.toFixed(2)}</td>`;
+        tr.innerHTML = `<td>${escapeHtml(s.shop)}</td><td>${escapeHtml(s.product)}</td><td>${s.qty}</td><td>${s.cost.toFixed(2)}</td>`;
         tbody.appendChild(tr);
     }
     if (keys.length > 0) {
         const tr = document.createElement('tr');
         tr.className = 'total-row';
-        tr.innerHTML = `<td>─── 合计 ───</td><td>${totalQty}</td><td>${totalCost.toFixed(2)}</td>`;
+        tr.innerHTML = `<td colspan="2">─── 合计 ───</td><td>${totalQty}</td><td>${totalCost.toFixed(2)}</td>`;
         tbody.appendChild(tr);
     }
     if (keys.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state">暂无数据</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state">暂无数据</div></td></tr>';
     }
 }
 
 function renderColorStats() {
     const stats = {};
     for (const r of allRecords) {
-        const key = r.product_name + '|||' + r.color;
-        if (!stats[key]) stats[key] = { product: r.product_name, color: r.color, qty: 0 };
+        const shop = r.shop_name || '未知';
+        const key = shop + '|' + r.product_name + '|' + r.color;
+        if (!stats[key]) stats[key] = { shop: shop, product: r.product_name, color: r.color, qty: 0 };
         stats[key].qty += r.quantity;
     }
 
     const tbody = document.getElementById('colorBody');
     tbody.innerHTML = '';
-    const items = Object.values(stats).sort((a, b) => a.product.localeCompare(b.product) || a.color.localeCompare(b.color));
+    const items = Object.values(stats).sort((a, b) => a.shop.localeCompare(b.shop) || a.product.localeCompare(b.product) || a.color.localeCompare(b.color));
     for (const item of items) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escapeHtml(item.product)}</td><td>${escapeHtml(item.color)}</td><td>${item.qty}</td>`;
-        tbody.appendChild(tr);
-    }
-    if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state">暂无数据</div></td></tr>';
-    }
-}
-
-function renderSizeStats() {
-    const stats = {};
-    for (const r of allRecords) {
-        const key = r.product_name + '|||' + r.size;
-        if (!stats[key]) stats[key] = { product: r.product_name, size: r.size, qty: 0 };
-        stats[key].qty += r.quantity;
-    }
-
-    const tbody = document.getElementById('sizeBody');
-    tbody.innerHTML = '';
-    const items = Object.values(stats).sort((a, b) => a.product.localeCompare(b.product) || a.size.localeCompare(b.size));
-    for (const item of items) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escapeHtml(item.product)}</td><td>${escapeHtml(item.size)}</td><td>${item.qty}</td>`;
-        tbody.appendChild(tr);
-    }
-    if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state">暂无数据</div></td></tr>';
-    }
-}
-
-function renderCrossStats() {
-    const stats = {};
-    for (const r of allRecords) {
-        const key = r.product_name + '|||' + r.color + '|||' + r.size;
-        if (!stats[key]) stats[key] = { product: r.product_name, color: r.color, size: r.size, qty: 0 };
-        stats[key].qty += r.quantity;
-    }
-
-    const tbody = document.getElementById('crossBody');
-    tbody.innerHTML = '';
-    const items = Object.values(stats).sort((a, b) => a.product.localeCompare(b.product) || a.color.localeCompare(b.color) || a.size.localeCompare(b.size));
-    for (const item of items) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escapeHtml(item.product)}</td><td>${escapeHtml(item.color)}</td><td>${escapeHtml(item.size)}</td><td>${item.qty}</td>`;
+        tr.innerHTML = `<td>${escapeHtml(item.shop)}</td><td>${escapeHtml(item.product)}</td><td>${escapeHtml(item.color)}</td><td>${item.qty}</td>`;
         tbody.appendChild(tr);
     }
     if (items.length === 0) {
@@ -425,11 +389,56 @@ function renderCrossStats() {
     }
 }
 
+function renderSizeStats() {
+    const stats = {};
+    for (const r of allRecords) {
+        const shop = r.shop_name || '未知';
+        const key = shop + '|' + r.product_name + '|' + r.size;
+        if (!stats[key]) stats[key] = { shop: shop, product: r.product_name, size: r.size, qty: 0 };
+        stats[key].qty += r.quantity;
+    }
+
+    const tbody = document.getElementById('sizeBody');
+    tbody.innerHTML = '';
+    const items = Object.values(stats).sort((a, b) => a.shop.localeCompare(b.shop) || a.product.localeCompare(b.product) || a.size.localeCompare(b.size));
+    for (const item of items) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(item.shop)}</td><td>${escapeHtml(item.product)}</td><td>${escapeHtml(item.size)}</td><td>${item.qty}</td>`;
+        tbody.appendChild(tr);
+    }
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state">暂无数据</div></td></tr>';
+    }
+}
+
+function renderCrossStats() {
+    const stats = {};
+    for (const r of allRecords) {
+        const shop = r.shop_name || '未知';
+        const key = shop + '|' + r.product_name + '|' + r.color + '|' + r.size;
+        if (!stats[key]) stats[key] = { shop: shop, product: r.product_name, color: r.color, size: r.size, qty: 0 };
+        stats[key].qty += r.quantity;
+    }
+
+    const tbody = document.getElementById('crossBody');
+    tbody.innerHTML = '';
+    const items = Object.values(stats).sort((a, b) => a.shop.localeCompare(b.shop) || a.product.localeCompare(b.product) || a.color.localeCompare(b.color) || a.size.localeCompare(b.size));
+    for (const item of items) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(item.shop)}</td><td>${escapeHtml(item.product)}</td><td>${escapeHtml(item.color)}</td><td>${escapeHtml(item.size)}</td><td>${item.qty}</td>`;
+        tbody.appendChild(tr);
+    }
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">暂无数据</div></td></tr>';
+    }
+}
+
 function renderDateStats() {
     const stats = {};
     for (const r of allRecords) {
-        const key = r.date + '|||' + r.product_name;
-        if (!stats[key]) stats[key] = { date: r.date, product: r.product_name, qty: 0, cost: 0 };
+        const shop = r.shop_name || '未知';
+        const key = r.date + '|' + shop + '|' + r.product_name;
+        if (!stats[key]) stats[key] = { date: r.date, shop: shop, product: r.product_name, qty: 0, cost: 0 };
         stats[key].qty += r.quantity;
         stats[key].cost += r.total_cost;
     }
@@ -438,15 +447,16 @@ function renderDateStats() {
     tbody.innerHTML = '';
     const items = Object.values(stats).sort((a, b) => {
         if (a.date !== b.date) return b.date.localeCompare(a.date);
+        if (a.shop !== b.shop) return a.shop.localeCompare(b.shop);
         return a.product.localeCompare(b.product);
     });
     for (const item of items) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.product)}</td><td>${item.qty}</td><td>${item.cost.toFixed(2)}</td>`;
+        tr.innerHTML = `<td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.shop)}</td><td>${escapeHtml(item.product)}</td><td>${item.qty}</td><td>${item.cost.toFixed(2)}</td>`;
         tbody.appendChild(tr);
     }
     if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state">暂无数据</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">暂无数据</div></td></tr>';
     }
 }
 

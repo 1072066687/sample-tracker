@@ -83,7 +83,7 @@ def init_db():
 
 @app.route("/api/sync", methods=["POST"])
 def api_sync():
-    """桌面端同步数据端点"""
+    """桌面端同步数据端点（全量替换）"""
     try:
         data = request.get_json(force=True)
     except Exception:
@@ -103,9 +103,11 @@ def api_sync():
     conn = get_connection()
     cursor = conn.cursor()
 
-    record_count = 0
+    # 全量替换：先清空该店铺的旧数据
+    cursor.execute("DELETE FROM records WHERE shop_name = ?", (shop_name,))
+    cursor.execute("DELETE FROM products WHERE shop_name = ?", (shop_name,))
 
-    # 存储产品配置
+    # 插入产品配置
     for product in products:
         product_id = product.get("id", "")
         if not product_id:
@@ -113,7 +115,7 @@ def api_sync():
         colors_str = json.dumps(product.get("colors", []), ensure_ascii=False)
         sizes_str = json.dumps(product.get("sizes", []), ensure_ascii=False)
         cursor.execute("""
-            INSERT OR REPLACE INTO products (id, shop_name, name, colors, sizes, cost)
+            INSERT INTO products (id, shop_name, name, colors, sizes, cost)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (
             product_id,
@@ -124,13 +126,14 @@ def api_sync():
             product.get("cost", 0.0),
         ))
 
-    # 存储发样记录（按 id + shop_name 去重）
+    # 插入发样记录
+    record_count = 0
     for record in records:
         record_id = record.get("id", "")
         if not record_id:
             continue
         cursor.execute("""
-            INSERT OR IGNORE INTO records
+            INSERT INTO records
                 (id, shop_name, date, product_name, color, size,
                  quantity, unit_cost, total_cost, creator, note)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -147,8 +150,7 @@ def api_sync():
             record.get("creator", ""),
             record.get("note", ""),
         ))
-        if cursor.rowcount > 0:
-            record_count += 1
+        record_count += 1
 
     conn.commit()
     conn.close()
